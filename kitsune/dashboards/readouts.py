@@ -601,6 +601,33 @@ class MostVisitedTranslationsReadout(MostVisitedDefaultLanguageReadout):
     def _format_row(self, columns):
         return _format_row_with_out_of_dateness(self.locale, *columns)
 
+    def render(self, max_rows=None):
+        """Override parent render to add some filtering."""
+        # Compute percents for bar widths:
+        rows = self.rows()
+
+        if max_rows is not None:
+            # If we specify max_rows, we are on the l10n dashboard
+            # overview page and want to filter out all up to date docs.
+            # NOTE: This is a HACK! But I would rather filter here
+            # than figure out the SQL to do this. And I don't know
+            # any other way to filter in one view and not the other.
+            rows = filter(lambda x: x['status_class'] != 'ok', rows)
+            rows = rows[:max_rows]
+
+        max_visits = max(r['visits'] for r in rows) if rows else 0
+        for r in rows:
+            visits = r['visits']
+            r['percent'] = (0 if visits is None or not max_visits
+                            else int(round(visits / float(max_visits) * 100)))
+
+        # Render:
+        return jingo.render_to_string(
+            self.request,
+            'dashboards/includes/kb_readout.html',
+            {'rows': rows, 'column3_label': self.column3_label,
+             'column4_label': self.column4_label})
+
 
 class TemplateTranslationsReadout(Readout):
     """Readout for templates in non-default languages
